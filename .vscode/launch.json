@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Current File (Isaac Sim)",
+      "type": "python",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "env": {
+        "RESOURCE_NAME": "IsaacSim"
+      },
+      "python": "/isaac-sim/kit/python/bin/python3",
+      "envFile": "/isaac-sim/.vscode/.standalone_examples.env",
+      "preLaunchTask": "setup_python_env"
+    },
+    {
+      "name": "Python: Attach (windows-x86_64/linux-x86_64)",
+      "type": "python",
+      "request": "attach",
+      "port": 3000,
+      "host": "localhost"
+    },
+    {
+      "name": "(Linux) Isaac Sim C++",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "/isaac-sim/kit/kit",
+      "args": [
+        "/isaac-sim/apps/isaacsim.exp.full.kit",
+        "--ext-folder", "/isaac-sim/exts",
+        "--ext-folder", "/isaac-sim/apps"
+      ],
+      "stopAtEntry": false,
+      "cwd": "/isaac-sim",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    }
+  ]
+}
