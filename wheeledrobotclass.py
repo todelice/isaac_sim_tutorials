@@ -1,43 +1,81 @@
-from isaacsim.examples.interactive.base_sample import BaseSample
-from isaacsim.core.utils.nucleus import get_assets_root_path
-from isaacsim.core.utils.stage import add_reference_to_stage
-from isaacsim.core.api.robots import Robot
+# SPDX-FileCopyrightText: Copyright (c) 2021-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import argparse
+
+from isaacsim import SimulationApp
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--test", default=False, action="store_true", help="Run in test mode")
+args, unknown = parser.parse_known_args()
+
+
+simulation_app = SimulationApp({"headless": False})
+
 import carb
+import numpy as np
+from isaacsim.core.api import World
+from isaacsim.robot.wheeled_robots.controllers.differential_controller import DifferentialController
+from isaacsim.robot.wheeled_robots.robots import WheeledRobot
+from isaacsim.storage.native import get_assets_root_path
 
+my_world = World(stage_units_in_meters=1.0)
+assets_root_path = get_assets_root_path()
+if assets_root_path is None:
+    carb.log_error("Could not find Isaac Sim assets folder")
+jetbot_asset_path = assets_root_path + "/Isaac/Robots/NVIDIA/Jetbot/jetbot.usd"
+my_jetbot = my_world.scene.add(
+    WheeledRobot(
+        prim_path="/World/Jetbot",
+        name="my_jetbot",
+        wheel_dof_names=["left_wheel_joint", "right_wheel_joint"],
+        create_robot=True,
+        usd_path=jetbot_asset_path,
+        position=np.array([0, 0.0, 0.05]),
+    )
+)
+my_world.scene.add_default_ground_plane()
+my_controller = DifferentialController(name="simple_control", wheel_radius=0.03, wheel_base=0.1125)
+my_world.reset()
 
-class HelloWorld(BaseSample):
-    def __init__(self) -> None:
-        super().__init__()
-        return
+i = 0
+reset_needed = False
+while simulation_app.is_running():
+    my_world.step(render=True)
+    if my_world.is_stopped() and not reset_needed:
+        reset_needed = True
+    if my_world.is_playing():
+        if reset_needed:
+            my_world.reset()
+            my_controller.reset()
+            reset_needed = False
+        if i >= 0 and i < 1000:
+            # forward
+            my_jetbot.apply_wheel_actions(my_controller.forward(command=[0.1, 0]))
+            print(my_jetbot.get_linear_velocity())
+        elif i >= 1000 and i < 1300:
+            # rotate
+            my_jetbot.apply_wheel_actions(my_controller.forward(command=[0.0, np.pi / 12]))
+            print(my_jetbot.get_angular_velocity())
+        elif i >= 1300 and i < 2000:
+            # forward
+            my_jetbot.apply_wheel_actions(my_controller.forward(command=[0.1, 0]))
+        elif i == 2000:
+            i = 0
+        i += 1
+    if args.test is True:
+        break
 
-    def setup_scene(self):
-        world = self.get_world()
-        world.scene.add_default_ground_plane()
-        # you configure a new server with /Isaac folder in it
-        assets_root_path = get_assets_root_path()
-        if assets_root_path is None:
-            # Use carb to log warnings, errors, and infos in your application (shown on terminal)
-            carb.log_error("Could not find nucleus server with /Isaac folder")
-        asset_path = assets_root_path + "/Isaac/Robots/NVIDIA/Jetbot/jetbot.usd"
-        # This will create a new XFormPrim and point it to the USD file as a reference
-        # Similar to how pointers work in memory
-        add_reference_to_stage(usd_path=asset_path, prim_path="/World/Fancy_Robot")
-        # Wrap the jetbot prim root under a Robot class and add it to the Scene
-        # to use high level api to set/ get attributes as well as initializing
-        # physics handles needed..etc.
-        # Note: this call doesn't create the Jetbot in the stage window, it was already
-        # created with the add_reference_to_stage
-        jetbot_robot = world.scene.add(Robot(prim_path="/World/Fancy_Robot", name="fancy_robot"))
-        # Note: before a reset is called, we can't access information related to an Articulation
-        # because physics handles are not initialized yet. setup_post_load is called after
-        # the first reset so we can do so there
-        print("Num of degrees of freedom before first reset: " + str(jetbot_robot.num_dof)) # prints None
-        return
-
-    async def setup_post_load(self):
-        self._world = self.get_world()
-        self._jetbot = self._world.scene.get_object("fancy_robot")
-        # Print info about the jetbot after the first reset is called
-        print("Num of degrees of freedom after first reset: " + str(self._jetbot.num_dof)) # prints 2
-        print("Joint Positions after first reset: " + str(self._jetbot.get_joint_positions()))
-        return
+my_world.stop()
+simulation_app.close()
